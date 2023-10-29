@@ -34,28 +34,50 @@ public class Main {
 
         controller.signup("vishal_cms", "123", Role.BUYER);
         Buyer buyer = (Buyer) controller.login("vishal_cms", "123");
-        List<CatalogueItem> books = controller.getBookCatalogue(buyer);
 
-        System.out.println(books);
+
+        System.out.println();
+        System.out.println("Search results =================");
         List<CatalogueItem> filteredBooks = controller.searchBooks(
                 buyer,
                 Map.of("title", new TitleSpec("distributed system"),
                         "author", new AuthorSpec("martin Kleppmann")
                 )
         );
-        System.out.println("Search results =================");
         System.out.println(filteredBooks);
-        System.out.println("================================");
+        for (CatalogueItem item: filteredBooks) {
+            System.out.println("Title: " + item.getTitle() + ", Publisher " + item.getPublisher());
+        }
+        System.out.println("Search results ==================");
 
+        System.out.println();
+
+        System.out.println("Placing order:======================");
         controller.addBookToCart(buyer, filteredBooks.get(0).getPurchaseOptions().get(0));
         Order order = controller.placeOrder(buyer, PaymentType.UPI);
         controller.payOrder(buyer, order);
+        System.out.println("Placing order:======================");
 
+        System.out.println();
+
+        System.out.println("Sold books:======================");
         List<SoldUnit> soldUnits = controller.getSoldBooks(seller);
-        System.out.println("sold units :=" + soldUnits);
+        for (SoldUnit unit: soldUnits) {
+            System.out.println("Title: " + unit.getTitle() + ", Price: " + unit.getPrice() + ", Date: " + unit.getDate());
+
+        }
+        System.out.println("Sold books:======================");
+        System.out.println();
 
         List<OrderItem> purchasedBooks = controller.getPurchasedBooks(buyer);
-        System.out.println("purchased books :=" + purchasedBooks);
+        System.out.println("Purchased books :=====================");
+        for (OrderItem item: purchasedBooks) {
+            System.out.println("Title:" + item.getBook().getTitle());
+        }
+        System.out.println("Purchased books :=====================");
+        System.out.println();
+
+
         OrderItem orderItem = purchasedBooks.get(0);
         String content = controller.downloadFile(buyer, orderItem.getBook().getBookId(), orderItem.getSeller().getId());
         System.out.println("file content :=" + content);
