@@ -6,10 +6,7 @@ import entities.order.Order;
 import entities.order.OrderController;
 import entities.order.OrderItem;
 import entities.payment.PaymentType;
-import entities.request.AuthenticationMiddleware;
-import entities.request.AuthorizationMiddleware;
-import entities.request.Request;
-import entities.request.RequestHandler;
+import entities.request.*;
 import entities.storage.controller.StorageController;
 import entities.user.Role;
 import entities.user.User;
@@ -59,149 +56,58 @@ public class LibraryController {
     }
 
     public void addBook(InventoryItem book, Seller seller) {
-        new AuthenticationMiddleware<InventoryItem>(
-                new AuthorizationMiddleware<>(
-                        new RequestHandler<>() {
-                            @Override
-                            public void handleRequest(Request<InventoryItem> request) {
-                                seller.addBookToInventory(request.getData());
-                            }
-                            @Override
-                            public void setNextHandler(RequestHandler<InventoryItem> nextHandler) {}
-                        },
-                        Set.of(Role.SELLER)
-                )
-        ).handleRequest(new Request<>(book, seller));
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.SELLER));
+        middleware.doFilter(new Headers(seller.getId(), seller.getRole()));
+        seller.addBookToInventory(book);
     }
 
     public List<CatalogueItem> getBookCatalogue(User user) {
-        List<CatalogueItem> catalogueItems = new LinkedList<>();
-
-         new AuthenticationMiddleware(new AuthorizationMiddleware(new RequestHandler() {
-            @Override
-            public void handleRequest(Request request) {
-                catalogueItems.addAll(catalogue.getAllBooks());
-            }
-
-            @Override
-            public void setNextHandler(RequestHandler nextHandler) {
-
-            }
-        }, Set.of(Role.ADMIN, Role.BUYER))).handleRequest(new Request(null, user));
-         return catalogueItems;
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.ADMIN, Role.BUYER));
+        middleware.doFilter(new Headers(user.getId(), user.getRole()));
+        return catalogue.getAllBooks();
     }
 
     public List<CatalogueItem> searchBooks(User user, Map<String, Spec<?>> spec) {
-        List<CatalogueItem> matchingBooks = new LinkedList<>();
-        new AuthenticationMiddleware<Map<String, Spec<?>>>(
-                new AuthorizationMiddleware<>(new RequestHandler<>() {
-                    @Override
-                    public void handleRequest(Request<Map<String, Spec<?>>> request) {
-                        matchingBooks.addAll(catalogue.search(request.getData()));
-                    }
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.BUYER));
+        middleware.doFilter(new Headers(user.getId(), user.getRole()));
 
-                    @Override
-                    public void setNextHandler(RequestHandler<Map<String, Spec<?>>> nextHandler) {
-
-                    }
-                }, Set.of(Role.BUYER))
-        ).handleRequest(new Request<>(spec, user));
-        return matchingBooks;
+        return catalogue.search(spec);
     }
 
     public void addBookToCart(Buyer buyer, PurchaseOption purchaseOption) {
-        new AuthenticationMiddleware<PurchaseOption>(
-                new AuthorizationMiddleware<>(
-                        new RequestHandler<PurchaseOption>() {
-            @Override
-            public void handleRequest(Request<PurchaseOption> request) {
-                PurchaseOption purchase = request.getData();
-                purchase.addToCart((Buyer) request.getUser());
-            }
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.BUYER));
+        middleware.doFilter(new Headers(buyer.getId(), buyer.getRole()));
 
-            @Override
-            public void setNextHandler(RequestHandler<PurchaseOption> nextHandler) {
-
-            }
-        },
-                        Set.of(Role.BUYER))
-        ).handleRequest(new Request<>(purchaseOption, buyer));
+        purchaseOption.addToCart(buyer);
     }
 
     public Order placeOrder(Buyer buyer, PaymentType paymentType) {
-        final Order[] order = new Order[1];
-        new AuthenticationMiddleware(new AuthorizationMiddleware(new RequestHandler() {
-            @Override
-            public void handleRequest(Request request) {
-                order[0] = orderController.createOrder((Buyer) request.getUser(), paymentType);
-            }
-
-            @Override
-            public void setNextHandler(RequestHandler nextHandler) {
-
-            }
-        }, Set.of(Role.BUYER))).handleRequest(new Request(null, buyer));
-        return order[0];
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.BUYER));
+        middleware.doFilter(new Headers(buyer.getId(), buyer.getRole()));
+        return orderController.createOrder(buyer, paymentType);
     }
 
     public void payOrder(Buyer buyer, Order order) {
-        new AuthenticationMiddleware<Order>(new AuthorizationMiddleware<>(new RequestHandler<Order>() {
-            @Override
-            public void handleRequest(Request<Order> request) {
-                request.getData().pay();
-            }
-
-            @Override
-            public void setNextHandler(RequestHandler<Order> nextHandler) {}
-
-        }, Set.of(Role.BUYER))).handleRequest(new Request<>(order, buyer));
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.BUYER));
+        middleware.doFilter(new Headers(buyer.getId(), buyer.getRole()));
+        order.pay();
     }
 
     public List<SoldUnit> getSoldBooks(Seller seller) {
-        final List<SoldUnit> soldUnits = new ArrayList<>();
-        new AuthenticationMiddleware<>(new AuthenticationMiddleware<>(new RequestHandler() {
-            @Override
-            public void handleRequest(Request request) {
-                soldUnits.addAll(seller.getSoldBooks());
-            }
-
-            @Override
-            public void setNextHandler(RequestHandler nextHandler) {
-
-            }
-        })).handleRequest(new Request(null, seller));
-        return soldUnits;
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.SELLER));
+        middleware.doFilter(new Headers(seller.getId(), seller.getRole()));
+        return seller.getSoldBooks();
     }
 
     public List<OrderItem> getPurchasedBooks(Buyer buyer) {
-        final List<OrderItem> purchasedBooks = new ArrayList<>();
-        new AuthenticationMiddleware(new AuthorizationMiddleware(new RequestHandler() {
-            @Override
-            public void handleRequest(Request request) {
-                purchasedBooks.addAll(buyer.getPurchasedBooks());
-            }
-
-            @Override
-            public void setNextHandler(RequestHandler nextHandler) {
-
-            }
-        }, Set.of(Role.BUYER))).handleRequest(new Request(null, buyer));
-        return purchasedBooks;
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.ADMIN, Role.BUYER));
+        middleware.doFilter(new Headers(buyer.getId(), buyer.getRole()));
+        return buyer.getPurchasedBooks();
     }
 
     public String downloadFile(Buyer buyer, String fileId, String sellerId) {
-        final String[] fileContent = {""};
-        new AuthenticationMiddleware<String>(new AuthorizationMiddleware<>(new RequestHandler<String>() {
-            @Override
-            public void handleRequest(Request<String> request) {
-               fileContent[0] = storageController.downloadFile(request.getUser(), request.getData());
-            }
-
-            @Override
-            public void setNextHandler(RequestHandler<String> nextHandler) {
-
-            }
-        }, Set.of(Role.BUYER))).handleRequest(new Request<>(fileId + ":" +sellerId, buyer));
-        return fileContent[0];
+        Middleware middleware = MiddlewareFactory.createMiddlewareChain(Set.of(Role.BUYER));
+        middleware.doFilter(new Headers(buyer.getId(), buyer.getRole()));
+        return storageController.downloadFile(buyer, fileId + ":" + sellerId);
     }
 }

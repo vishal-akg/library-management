@@ -4,30 +4,18 @@ import entities.user.Role;
 
 import java.util.Set;
 
-public class AuthorizationMiddleware<T> implements RequestHandler<T>{
-    private RequestHandler<T> nextHandler;
+public class AuthorizationMiddleware extends BaseMiddleware{
     private Set<Role> anyRole;
 
-    public AuthorizationMiddleware(RequestHandler<T> nextHandler, Set<Role> anyRole) {
-        this.nextHandler = nextHandler;
+    public AuthorizationMiddleware(Set<Role> anyRole) {
         this.anyRole = anyRole;
     }
 
     @Override
-    public void handleRequest(Request<T> request) {
-        if (authorized(request)) {
-            if (nextHandler != null) {
-                nextHandler.handleRequest(request);
-            }
+    public void doFilter(Headers headers) {
+        if (headers.getRole() == null || !anyRole.contains(headers.getRole())) {
+            throw new SecurityException("You are not authorized to perform this action");
         }
-    }
-
-    private boolean authorized(Request<T> request) {
-        return anyRole.contains(request.getUser().getRole());
-    }
-
-    @Override
-    public void setNextHandler(RequestHandler<T> nextHandler) {
-        this.nextHandler = nextHandler;
+        super.doFilter(headers);
     }
 }
